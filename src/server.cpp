@@ -49,15 +49,14 @@ int main(int argc, char **argv) {
   
   std::cout << "Waiting for a client to connect...\n";
   
-  int client_sock = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
+  // Update here for get clint socket;
+  accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
   std::cout << "Client connected\n";
 
   std::string response = "HTTP/1.1 200 OK\r\n\r\n";
-
-  send(client_sock, response.c_str(), response.size(), 0);
+  sendto(server_fd, response.c_str(), response.size(), 0, (struct sockaddr *) &client_addr, client_addr_len);
 
   close(server_fd);
-  close(client_sock);
 
   return 0;
 }
