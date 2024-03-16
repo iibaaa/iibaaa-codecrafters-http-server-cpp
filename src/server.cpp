@@ -54,12 +54,7 @@ int main(int argc, char **argv) {
 
   std::string response = "HTTP/1.1 200 OK\r\n\r\n";
 
-  write(server_fd, &response[0], sizeof(response));
-
-  int x ;
-  std::cout << "Press any key to shutdown" << std::endl;
-  std::cin >> x;
-  
+  send(server_fd, response.c_str(), response.size(), 0);
 
   close(server_fd);
 
