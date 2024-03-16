@@ -51,7 +51,16 @@ int main(int argc, char **argv) {
   
   accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
   std::cout << "Client connected\n";
+
+  std::string response = "HTTP/1.1 200 OK\r\n\r\n";
+
+  write(server_fd, &response[0], sizeof(response));
+
+  int x ;
+  std::cout << "Press any key to shutdown" << std::endl;
+  std::cin >> x;
   
+
   close(server_fd);
 
   return 0;
