@@ -122,14 +122,24 @@ int main(int argc, char **argv) {
     std::cout << "Path Found :" << path << "." << std::endl;
   }
 
-  if (path == "/" )
+  if (path == "/")
   {
     std::cout << "Sending response 200" << std::endl;
     send_response(client_socket, res_200);
   }
+  else if(path.find("echo") != std::string::npos)
+  {
+    std::string response = "HTTP/1.1 200 OK\r\n";
+    std::string echo_msg = path.substr(path.find("echo")+5);
+    response += "Content-Type: text/plain\r\n";
+    response += ("Content-Length: " + std::to_string(echo_msg.size()) + "\r\n\r\n");
+    response += echo_msg;
+    std::cout << "Response : \n" << response << std::endl;
+    send_response(client_socket, response);
+  }
   else
   {
-     std::cout << "Sending response 400" << std::endl;
+     std::cout << "Sending response 404" << std::endl;
      send_response(client_socket, res_404);
   }
 
