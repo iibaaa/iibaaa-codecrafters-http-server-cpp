@@ -7,6 +7,14 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <vector>
+
+
+void send_response(int socket_fd, std::string response)
+{
+    send(socket_fd, response.c_str(), response.size(), 0);
+}
+
 
 int main(int argc, char **argv) {
   // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -50,11 +58,39 @@ int main(int argc, char **argv) {
   std::cout << "Waiting for a client to connect...\n";
   
   // Update here for get clint socket;
-  accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
+  int client_socket = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
   std::cout << "Client connected\n";
 
-  std::string response = "HTTP/1.1 200 OK\r\n\r\n";
-  sendto(server_fd, response.c_str(), response.size(), 0, (struct sockaddr *) &client_addr, client_addr_len);
+  // std::string response = "HTTP/1.1 200 OK\r\n\r\n";
+  // send(client_socket, response.c_str(), response.size(), 0);
+
+  std::string res_200 = "HTTP/1.1 200 OK\r\n\r\n";
+  std::string res_400 = "HTTP/1.1 400 Not Found\r\n\r\n";
+  char buf[1024];
+  std::string buffer= "";
+
+  int receive_buf_size = recv(client_socket, buffer.data(), 1024, 0);
+  // std::cout << "Received Msg : \n" << buffer << std::endl;
+  
+  int get_point = buffer.find("GET")+4;
+  int http_point = buffer.find("HTTP")-1;
+
+  std::string path = buffer.substr(get_point, http_point - get_point);
+
+  std::cout <<  "Path : " << path << std::endl;
+
+  if (path == "/")
+  {
+    std::cout << "Sending 200 response" << std::endl;
+    send_response(client_socket, res_200);
+  }
+  else
+  {
+    std::cout << "Sending 400 response" << std::endl;
+    send_response(client_socket, res_400);
+  }
+
+
 
   close(server_fd);
 
