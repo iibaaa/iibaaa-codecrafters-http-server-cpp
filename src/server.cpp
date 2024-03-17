@@ -9,6 +9,8 @@
 #include <netdb.h>
 #include <vector>
 #include <thread>
+#include <fstream>
+
 
 std::string res_200 = "HTTP/1.1 200 OK\r\n\r\n";
 std::string res_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
@@ -41,7 +43,7 @@ std::vector<std::string> splitString(const std::string &input)
 	return result;
 }
 
-void threadHandleConnection(int client_sock)
+void threadHandleConnection(int client_sock, std::string file_folder)
 {
 	std::cout << "New Connection starting with " << client_sock << "." << std::endl;
 	char buffer[1024] = {0};
@@ -87,6 +89,30 @@ void threadHandleConnection(int client_sock)
 		std::cout << "Sending response 200" << std::endl;
 		send_response(client_sock, res_200);
 	}
+	else if (path.find("files") != std::string::npos)
+	{
+		std::string file_name = path.substr(7);
+		std::string file_abs_path = file_folder + "/" + file_name;
+		std::cout << "Abs File Path : " << file_abs_path << std::endl;
+		std::ifstream file(file_abs_path);
+		std::string response = "HTTP/1.1 404 Not Found\r\n\r\n";
+		if (file.is_open())
+		{
+			std::string response_msg = "";
+			std::string line;
+			while (std::getline(file, line)) {
+				response_msg += line;
+			}
+			file.close();
+			
+			response = "HTTP/1.1 200 OK\r\n";
+			response += "Content-Type: application/octet-stream\r\n";
+			response += ("Content-Length: " + std::to_string(response_msg.size()) + "\r\n\r\n");
+			response += response_msg;
+			std::cout << "File Found" << std::endl;
+		}
+		send_response(client_sock, response);
+	}
 	else if (path.find("echo") != std::string::npos)
 	{
 		std::string response = "HTTP/1.1 200 OK\r\n";
@@ -119,6 +145,7 @@ void threadHandleConnection(int client_sock)
 	close(client_sock);
 	return;
 }
+
 
 int main(int argc, char **argv)
 {
@@ -166,10 +193,17 @@ int main(int argc, char **argv)
 
 	std::cout << "Waiting for a client to connect...\n";
 
+
+	std::string file_folder = "";
+
+	if (argc == 3 && std::string(argv[1]) == "--directory")
+	{
+		file_folder = argv[2];
+	}
+
 	std::vector<int> clients;
 	std::vector<std::thread> connectionThreads;
-
-	while (1)
+	while (true)
 	{	
 		int client_socket = accept(server_fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_len);
 
@@ -181,12 +215,12 @@ int main(int argc, char **argv)
 
 		// Create thread
 		// Create and immediately detach thread
-        std::thread thread([client_socket]() {
-            threadHandleConnection(client_socket);
-        });
-
+		std::thread thread([client_socket, file_folder]() {
+			threadHandleConnection(client_socket, file_folder);
+		});
 		// Add To connectipn threads
 		connectionThreads.push_back(std::move(thread));
+	
 	}
 
 	for (auto &t : connectionThreads)
