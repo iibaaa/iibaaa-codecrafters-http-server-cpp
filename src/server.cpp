@@ -15,6 +15,26 @@ void send_response(int socket_fd, std::string response)
     send(socket_fd, response.c_str(), response.size(), 0);
 }
 
+std::vector<std::string> splitString(const std::string& input) {
+    std::vector<std::string> result;
+    size_t startPos = 0;
+    std::string delimiter = "\r\n";
+    size_t delimiterPos = input.find(delimiter, startPos);
+
+    while (delimiterPos != std::string::npos) {
+        std::string token = input.substr(startPos, delimiterPos - startPos);
+        result.push_back(token);
+        startPos = delimiterPos + delimiter.length();
+        delimiterPos = input.find(delimiter, startPos);
+    }
+
+    if (startPos < input.length()) {
+        result.push_back(input.substr(startPos));
+    }
+
+    return result;
+}
+
 
 int main(int argc, char **argv) {
   // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -61,38 +81,37 @@ int main(int argc, char **argv) {
   int client_socket = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
   std::cout << "Client connected\n";
 
-  // std::string response = "HTTP/1.1 200 OK\r\n\r\n";
-  // send(client_socket, response.c_str(), response.size(), 0);
-
   std::string res_200 = "HTTP/1.1 200 OK\r\n\r\n";
   std::string res_400 = "HTTP/1.1 400 Not Found\r\n\r\n";
-  char buf[1024];
   std::string buffer= "";
 
   int receive_buf_size = recv(client_socket, buffer.data(), 1024, 0);
-  // std::cout << "Received Msg : \n" << buffer << std::endl;
   
-  int get_point = buffer.find("GET")+4;
-  int http_point = buffer.find("HTTP")-1;
+  std::vector<std::string> splitResponse = splitString(buffer);
 
-  std::string path = buffer.substr(get_point, http_point - get_point);
-
-  std::cout <<  "Path : " << path << std::endl;
+  // Check if GET Exist In First Line
+  std::string GETPART = splitResponse[0];
+  // If GET in text, find HTTP too and substring path
+  auto getPosition = GETPART.find("GET");
+  auto httpPosition = GETPART.find("HTTP");
+  std::string path = "/";
+  if (getPosition != std::string::npos && httpPosition != std::string::npos)
+  {
+    path = GETPART.substr(getPosition+4, httpPosition-5);
+    std::cout << "Path Found :" << path << "." << std::endl;
+  }
 
   if (path == "/")
   {
-    std::cout << "Sending 200 response" << std::endl;
     send_response(client_socket, res_200);
   }
   else
   {
-    std::cout << "Sending 400 response" << std::endl;
     send_response(client_socket, res_400);
   }
-
-
-
+  
   close(server_fd);
+  close(client_socket);
 
   return 0;
 }
