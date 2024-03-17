@@ -11,12 +11,25 @@
 #include <thread>
 #include <fstream>
 
-
-std::string res_200 = "HTTP/1.1 200 OK\r\n\r\n";
-std::string res_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
-
-void send_response(int socket_fd, std::string &response)
+enum Method
 {
+	GET,
+	POST,
+};
+
+struct DataHolder
+{
+	Method method;
+	std::string path;
+	std::string user_agent;
+	std::string  content_lenght;
+	std::string content_type;
+	std::string content;
+};
+
+void send_response(int socket_fd, std::string response)
+{
+	std::cout << "Response :\n" << response << "\n------" <<std::endl;
 	send(socket_fd, response.c_str(), response.size(), 0);
 }
 
@@ -43,104 +56,178 @@ std::vector<std::string> splitString(const std::string &input)
 	return result;
 }
 
+DataHolder parseRequest(std::string request)
+{
+	DataHolder temp;
+	int start_p, end_p;
+	std::vector<std::string> lineParsedRequest = splitString(request);
+
+	// Check if GET or POST
+	std::string tmp_string = lineParsedRequest[0];
+	if (tmp_string.find("GET") != std::string::npos)
+		temp.method = Method::GET;
+	else
+		temp.method = Method::POST;
+
+	// Parse path, path starts with /
+	start_p = tmp_string.find("/");
+	end_p = tmp_string.find("HTTP");
+
+	if (start_p != std::string::npos && end_p != std::string::npos)
+		temp.path = tmp_string.substr(start_p , end_p - start_p -1);
+	
+	if (lineParsedRequest.size() > 2)
+	{
+		// Parse User Agent
+		tmp_string = lineParsedRequest[2];
+		start_p = tmp_string.find(":");
+		if (start_p != std::string::npos)
+			temp.user_agent = tmp_string.substr(start_p+2);
+	}
+
+	if (temp.method == Method::POST)
+	{
+		int content_idx = lineParsedRequest.size();
+		for (int idx = 3; idx < lineParsedRequest.size(); idx++)
+		{
+			tmp_string = lineParsedRequest[idx];
+			if (tmp_string.find("Content-Length") != std::string::npos)
+			{
+				// Parse Content Lenght
+				start_p = tmp_string.find(":");
+				if (start_p != std::string::npos)
+					temp.content_lenght = tmp_string.substr(start_p+2);
+				
+				continue;
+			}
+			
+			if (tmp_string.find("Content-Type") != std::string::npos)
+			{
+				// Parse Content Type
+				start_p = tmp_string.find(":");
+				if (start_p != std::string::npos)
+					temp.content_type = tmp_string.substr(start_p+2);
+				
+				continue;
+			}
+
+			if (tmp_string == "" || idx > content_idx)
+			{
+				content_idx = idx;
+				temp.content += tmp_string;
+				continue;
+			}
+		}
+
+		std::cout << "Content : \n" << temp.content << std::endl;
+	}
+
+	return temp;
+}
+
+void createFile(std::string file_path, std::string content)
+{
+	std::ofstream file(file_path);
+	file << content;
+	file.close();
+}
+
+std::string readFile(std::string file_path)
+{
+	std::string content = "NOFILE";
+	std::fstream file(file_path);
+	if (file.is_open())
+	{
+		content = "";
+		std::string line;
+		while (std::getline(file, line)) {
+			content += line;
+		}
+		file.close();
+	}
+	return content;
+}
+
 void threadHandleConnection(int client_sock, std::string file_folder)
 {
 	std::cout << "New Connection starting with " << client_sock << "." << std::endl;
 	char buffer[1024] = {0};
 
 	int receive_buf_size = recv(client_sock, buffer, 1023, 0);
-	if (receive_buf_size < 0)
+	if (receive_buf_size <= 0)
 	{
 		std::cout << "Receive Failed." << std::endl;
 		close(client_sock);
-		return ;
+		return;
 	}
 
 	std::string bufferString(buffer, receive_buf_size);
+	
+	std::cout << "Request Size: " << receive_buf_size << "\n" << bufferString << std::endl;
 
-	std::vector<std::string> splitResponse = splitString(bufferString);
+	DataHolder data = parseRequest(bufferString);
 
-	int getIdx = 0;
-	for (int i = 0; i < splitResponse.size(); i++)
+	switch(data.method)
 	{
-		std::string line = splitResponse[i];
-		if (line.find("GET") != std::string::npos)
+		case Method::GET:
+		
+		if (data.path == "/")
 		{
-			getIdx = i;
+			send_response(client_sock, "HTTP/1.1 200 OK\r\n\r\n");
 			break;
 		}
-	}
-	// Check if GET Exist In First Line
-	std::string GETPART = splitResponse[getIdx];
-	std::string HOSTPART = splitResponse[getIdx + 1];
-	std::string USERPart = splitResponse[getIdx + 2];
-	// If GET in text, find HTTP too and substring path
-	auto getPosition = GETPART.find("GET");
-	auto httpPosition = GETPART.find("HTTP");
-	std::string path = "/";
-	if (getPosition != std::string::npos && httpPosition != std::string::npos)
-	{
-		path = GETPART.substr(getPosition + 4, httpPosition - 5);
-		std::cout << "Path Found :" << path << "." << std::endl;
-	}
 
-	if (path == "/")
-	{
-		std::cout << "Sending response 200" << std::endl;
-		send_response(client_sock, res_200);
-	}
-	else if (path.find("files") != std::string::npos)
-	{
-		std::string file_name = path.substr(7);
-		std::string file_abs_path = file_folder + "/" + file_name;
-		std::cout << "Abs File Path : " << file_abs_path << std::endl;
-		std::ifstream file(file_abs_path);
-		std::string response = "HTTP/1.1 404 Not Found\r\n\r\n";
-		if (file.is_open())
+		if (data.path == "/user-agent")
 		{
-			std::string response_msg = "";
-			std::string line;
-			while (std::getline(file, line)) {
-				response_msg += line;
-			}
-			file.close();
-			
-			response = "HTTP/1.1 200 OK\r\n";
-			response += "Content-Type: application/octet-stream\r\n";
-			response += ("Content-Length: " + std::to_string(response_msg.size()) + "\r\n\r\n");
-			response += response_msg;
-			std::cout << "File Found" << std::endl;
-		}
-		send_response(client_sock, response);
-	}
-	else if (path.find("echo") != std::string::npos)
-	{
-		std::string response = "HTTP/1.1 200 OK\r\n";
-		std::string response_msg = path.substr(path.find("echo") + 5);
-		response += "Content-Type: text/plain\r\n";
-		response += ("Content-Length: " + std::to_string(response_msg.size()) + "\r\n\r\n");
-		response += response_msg;
-		std::cout << "Response : \n"
-				  << response << std::endl;
-		send_response(client_sock, response);
-	}
-	else if (path == "/user-agent")
-	{
-		std::string response = "HTTP/1.1 200 OK\r\n";
-		std::string response_msg = USERPart.substr(USERPart.find(":") + 2);
+			std::string response = "HTTP/1.1 200 OK\r\n";
+			std::string content = data.user_agent;
 
-		response += "Content-Type: text/plain\r\n";
-		response += ("Content-Length: " + std::to_string(response_msg.size()) + "\r\n\r\n");
-		response += response_msg;
-		std::cout << "Response : \n"
-				  << response << std::endl;
-		send_response(client_sock, response);
-	}
-	else
-	{
-		std::cout << "Sending response 404" << std::endl;
-		send_response(client_sock, res_404);
-	}
+			response += "Content-Type: text/plain\r\n";
+			response += ("Content-Length: " + std::to_string(content.size()) + "\r\n\r\n");
+			response += content;
+			send_response(client_sock, response);
+			break;
+		}
+
+		if (data.path.find("files") != std::string::npos)
+		{
+			std::string response = "HTTP/1.1 404 Not Found\r\n\r\n";
+			std::string file_abs_path = file_folder + data.path.substr(7);
+			std::string content = readFile(file_abs_path);
+
+			if (content != "NOFILE")
+			{
+				response = "HTTP/1.1 200 OK\r\n";
+				response += "Content-Type: application/octet-stream\r\n";
+				response += ("Content-Length: " + std::to_string(content.size()) + "\r\n\r\n");
+	 			response += content;
+			}	
+			send_response(client_sock, response);
+			break;
+		}
+
+		if (data.path.find("echo") != std::string::npos)
+		{
+			std::string response = "HTTP/1.1 200 OK\r\n";
+			std::string content = data.path.substr(data.path.find("echo") + 5);
+
+			response += "Content-Type: text/plain\r\n";
+			response += ("Content-Length: " + std::to_string(content.size()) + "\r\n\r\n");
+			response += content;
+			send_response(client_sock, response);
+			break;
+		}
+
+		
+		send_response(client_sock, "HTTP/1.1 404 Not Found\r\n\r\n");
+		break;
+
+		case Method::POST:
+			std::string file_abs_path = file_folder + data.path.substr(7);
+			createFile(file_abs_path, data.content);
+			send_response(client_sock, "HTTP/1.1 201 CREATED\r\n\r\n");
+		break;
+	};
 
 	close(client_sock);
 	return;
@@ -188,21 +275,20 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	struct sockaddr_in client_addr;
-	int client_addr_len = sizeof(client_addr);
-
-	std::cout << "Waiting for a client to connect...\n";
-
-
 	std::string file_folder = "";
-
 	if (argc == 3 && std::string(argv[1]) == "--directory")
 	{
 		file_folder = argv[2];
+		if (file_folder[-1] != '/')
+			file_folder += "/";
 	}
 
 	std::vector<int> clients;
 	std::vector<std::thread> connectionThreads;
+	struct sockaddr_in client_addr;
+	int client_addr_len = sizeof(client_addr);
+
+	std::cout << "Waiting for a client to connect...\n";
 	while (true)
 	{	
 		int client_socket = accept(server_fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_len);
