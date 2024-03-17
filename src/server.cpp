@@ -112,6 +112,8 @@ int main(int argc, char **argv) {
   }
   // Check if GET Exist In First Line
   std::string GETPART = splitResponse[getIdx];
+  std::string HOSTPART = splitResponse[getIdx+1];
+  std::string USERPart = splitResponse[getIdx+2];
   // If GET in text, find HTTP too and substring path
   auto getPosition = GETPART.find("GET");
   auto httpPosition = GETPART.find("HTTP");
@@ -130,10 +132,20 @@ int main(int argc, char **argv) {
   else if(path.find("echo") != std::string::npos)
   {
     std::string response = "HTTP/1.1 200 OK\r\n";
-    std::string echo_msg = path.substr(path.find("echo")+5);
+    std::string response_msg = path.substr(path.find("echo")+5);
     response += "Content-Type: text/plain\r\n";
-    response += ("Content-Length: " + std::to_string(echo_msg.size()) + "\r\n\r\n");
-    response += echo_msg;
+    response += ("Content-Length: " + std::to_string(response_msg.size()) + "\r\n\r\n");
+    response += response_msg;
+    std::cout << "Response : \n" << response << std::endl;
+    send_response(client_socket, response);
+  }
+  else if(path == "/user-agent")
+  {
+    std::string response = "HTTP/1.1 200 OK\r\n";
+    std::string response_msg = USERPart.substr(USERPart.find(":")+1);
+    response += "Content-Type: text/plain\r\n";
+    response += ("Content-Length: " + std::to_string(response_msg.size()) + "\r\n\r\n");
+    response += response_msg;
     std::cout << "Response : \n" << response << std::endl;
     send_response(client_socket, response);
   }
