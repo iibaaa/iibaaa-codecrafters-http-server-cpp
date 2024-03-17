@@ -142,7 +142,8 @@ int main(int argc, char **argv) {
   else if(path == "/user-agent")
   {
     std::string response = "HTTP/1.1 200 OK\r\n";
-    std::string response_msg = USERPart.substr(USERPart.find(":")+1);
+    std::string response_msg = USERPart.substr(USERPart.find(":")+2);
+    
     response += "Content-Type: text/plain\r\n";
     response += ("Content-Length: " + std::to_string(response_msg.size()) + "\r\n\r\n");
     response += response_msg;
