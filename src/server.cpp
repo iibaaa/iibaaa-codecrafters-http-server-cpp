@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
   std::cout << "Client connected\n";
 
   std::string res_200 = "HTTP/1.1 200 OK\r\n\r\n";
-  std::string res_400 = "HTTP/1.1 400 Not Found\r\n\r\n";
+  std::string res_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
   
 
   char buffer[1024] = {0};
@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
   else
   {
      std::cout << "Sending response 400" << std::endl;
-     send_response(client_socket, res_400);
+     send_response(client_socket, res_404);
   }
 
   close(client_socket);
