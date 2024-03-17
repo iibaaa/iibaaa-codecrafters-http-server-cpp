@@ -10,7 +10,7 @@
 #include <vector>
 
 
-void send_response(int socket_fd, std::string response)
+void send_response(int socket_fd, std::string &response)
 {
     send(socket_fd, response.c_str(), response.size(), 0);
 }
@@ -83,14 +83,35 @@ int main(int argc, char **argv) {
 
   std::string res_200 = "HTTP/1.1 200 OK\r\n\r\n";
   std::string res_400 = "HTTP/1.1 400 Not Found\r\n\r\n";
-  std::string buffer= "";
-
-  int receive_buf_size = recv(client_socket, buffer.data(), 1024, 0);
   
-  std::vector<std::string> splitResponse = splitString(buffer);
 
+  char buffer[1024] = {0};
+
+  int receive_buf_size = recv(client_socket, buffer, 1023, 0);
+  if (receive_buf_size < 0)
+  {
+    std::cout << "Receive Failed." << std::endl;
+    close(client_socket);
+    close(server_fd);
+    return 1;
+  }
+
+  std::string bufferString(buffer, receive_buf_size);
+  
+  std::vector<std::string> splitResponse = splitString(bufferString);
+
+  int getIdx = 0;
+  for (int i = 0; i < splitResponse.size(); i++)
+  {
+    std::string line = splitResponse[i];
+    if (line.find("GET") != std::string::npos)
+    {
+      getIdx = i;
+      break;
+    }
+  }
   // Check if GET Exist In First Line
-  std::string GETPART = splitResponse[0];
+  std::string GETPART = splitResponse[getIdx];
   // If GET in text, find HTTP too and substring path
   auto getPosition = GETPART.find("GET");
   auto httpPosition = GETPART.find("HTTP");
@@ -101,17 +122,19 @@ int main(int argc, char **argv) {
     std::cout << "Path Found :" << path << "." << std::endl;
   }
 
-  if (path == "/")
+  if (path == "/" )
   {
+    std::cout << "Sending response 200" << std::endl;
     send_response(client_socket, res_200);
   }
   else
   {
-    send_response(client_socket, res_400);
+     std::cout << "Sending response 400" << std::endl;
+     send_response(client_socket, res_400);
   }
-  
-  close(server_fd);
+
   close(client_socket);
+  close(server_fd);
 
   return 0;
 }
